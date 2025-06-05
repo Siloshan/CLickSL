@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Menu, X, User, Settings, LogOut, Plus, Shield } from 'lucide-react';
+import { Search, Menu, X, User, Settings, LogOut, Plus, Shield, Heart } from 'lucide-react'; // Added Heart
 
 const Navigation: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -97,6 +97,10 @@ const Navigation: React.FC = () => {
                     <DropdownMenuItem onClick={() => navigate('/dashboard')} data-id="eg428kkp0" data-path="src/components/Navigation.tsx">
                       <Settings className="mr-2 h-4 w-4" data-id="hx1yvd2xp" data-path="src/components/Navigation.tsx" />
                       Dashboard
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/wishlist')} data-id="wishlistnav01" data-path="src/components/Navigation.tsx">
+                      <Heart className="mr-2 h-4 w-4" data-id="wishlistnavicon01" data-path="src/components/Navigation.tsx" />
+                      Wishlist
                     </DropdownMenuItem>
                     {user.role === 'admin' &&
                   <DropdownMenuItem onClick={() => navigate('/admin')} data-id="502qkwpt7" data-path="src/components/Navigation.tsx">

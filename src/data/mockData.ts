@@ -34,7 +34,7 @@ export interface Listing {
   featured: boolean;
 }
 
-export const mockListings: Listing[] = [
+export let mockListingsData: Listing[] = [
 {
   id: '1',
   title: 'Sigiriya Rock Fortress',
@@ -212,31 +212,49 @@ export const districts = [
 
 // Search functionality
 export const searchListings = (query: string, category?: string, location?: string): Listing[] => {
-  let results = mockListings.filter((listing) => listing.approved);
+  let- initialResults = mockListingsData.filter((listing) => listing.approved);
+
+  // Apply category filter first
+  if (category && category !== 'all') {
+    initialResults = initialResults.filter((listing) => listing.category === category);
+  }
+
+  // Apply location filter
+  if (location && location !== 'all') {
+    initialResults = initialResults.filter((listing) =>
+      listing.location.district.toLowerCase().includes(location.toLowerCase()) ||
+      listing.location.city.toLowerCase().includes(location.toLowerCase())
+    );
+  }
 
   if (query) {
     const searchTerm = query.toLowerCase();
-    results = results.filter((listing) =>
-    listing.title.toLowerCase().includes(searchTerm) ||
-    listing.description.toLowerCase().includes(searchTerm) ||
-    listing.location.city.toLowerCase().includes(searchTerm) ||
-    listing.location.district.toLowerCase().includes(searchTerm) ||
-    listing.features.some((feature) => feature.toLowerCase().includes(searchTerm))
+    let finalResults: Listing[] = [];
+
+    // 1. Title matches
+    const titleMatches = initialResults.filter((listing) =>
+      listing.title.toLowerCase().includes(searchTerm)
     );
-  }
 
-  if (category && category !== 'all') {
-    results = results.filter((listing) => listing.category === category);
-  }
+    // IDs of title matches to exclude from other searches
+    const titleMatchIds = new Set(titleMatches.map(listing => listing.id));
 
-  if (location && location !== 'all') {
-    results = results.filter((listing) =>
-    listing.location.district.toLowerCase().includes(location.toLowerCase()) ||
-    listing.location.city.toLowerCase().includes(location.toLowerCase())
+    // 2. Description or features matches (from remaining listings not matched by title)
+    // Also include city/district matches here as a fallback if query is a location name
+    // and not caught by the specific location filter (e.g. user types "Galle" in main search)
+    const otherMatches = initialResults.filter((listing) =>
+      !titleMatchIds.has(listing.id) &&
+      (listing.description.toLowerCase().includes(searchTerm) ||
+      listing.features.some((feature) => feature.toLowerCase().includes(searchTerm)) ||
+      listing.location.city.toLowerCase().includes(searchTerm) ||
+      listing.location.district.toLowerCase().includes(searchTerm))
     );
+    finalResults = [...titleMatches, ...otherMatches];
+    return finalResults;
+  } else {
+    // If no query, return listings filtered by category and location
+    return initialResults;
   }
-
-  return results;
 };
 
 // Natural language processing for smart search
@@ -245,37 +263,136 @@ export const processNaturalLanguageQuery = (query: string): {category?: string;l
 
   // Category detection
   let category: string | undefined;
-  if (lowerQuery.includes('hotel') || lowerQuery.includes('accommodation') || lowerQuery.includes('stay')) {
-    category = 'hotel';
-  } else if (lowerQuery.includes('restaurant') || lowerQuery.includes('food') || lowerQuery.includes('dining')) {
-    category = 'restaurant';
-  } else if (lowerQuery.includes('beach') || lowerQuery.includes('seaside') || lowerQuery.includes('coast')) {
-    category = 'beach';
-  } else if (lowerQuery.includes('temple') || lowerQuery.includes('religious') || lowerQuery.includes('sacred')) {
-    category = 'temple';
-  } else if (lowerQuery.includes('wildlife') || lowerQuery.includes('safari') || lowerQuery.includes('animals')) {
-    category = 'wildlife';
-  } else if (lowerQuery.includes('attraction') || lowerQuery.includes('sightseeing') || lowerQuery.includes('visit')) {
-    category = 'attraction';
+  const categoryKeywords = {
+    hotel: ['hotel', 'accommodation', 'lodging', 'inn', 'resort', 'stay'],
+    restaurant: ['restaurant', 'eatery', 'cafe', 'diner', 'food', 'dining'],
+    beach: ['beach', 'seaside', 'coast'],
+    temple: ['temple', 'shrine', 'kovil', 'vihara', 'religious', 'sacred'],
+    wildlife: ['wildlife', 'nature reserve', 'sanctuary', 'safari', 'animals'],
+    experience: ['experience', 'activity', 'tour'],
+    attraction: ['attraction', 'sightseeing', 'visit'],
+  };
+
+  let matchedCategoryKeyword: string | undefined;
+
+  for (const cat in categoryKeywords) {
+    const keywords = categoryKeywords[cat as keyof typeof categoryKeywords];
+    for (const keyword of keywords) {
+      if (lowerQuery.includes(keyword)) {
+        category = cat;
+        matchedCategoryKeyword = keyword;
+        break;
+      }
+    }
+    if (category) break;
   }
 
   // Location detection
   let location: string | undefined;
+  let matchedLocationKeyword: string | undefined;
   for (const district of districts) {
     if (lowerQuery.includes(district.toLowerCase())) {
       location = district;
+      matchedLocationKeyword = district; // Keep the matched district for removal logic
       break;
     }
   }
 
-  // Remove category and location words from query for cleaner search
+  // Processed query logic:
+  // Goal: "luxury hotels in Galle" -> category: "hotel", location: "Galle", processedQuery: "luxury hotels"
+  // (Simplified to "luxury hotels in" which is also acceptable)
   let processedQuery = query;
-  if (category) {
-    processedQuery = processedQuery.replace(new RegExp(category, 'gi'), '').trim();
-  }
-  if (location) {
-    processedQuery = processedQuery.replace(new RegExp(location, 'gi'), '').trim();
+
+  if (location && matchedLocationKeyword) {
+    // Only remove the location keyword if the query is not *just* the location keyword.
+    if (query.toLowerCase() !== matchedLocationKeyword.toLowerCase()) {
+      const regexLoc = new RegExp(`\\b${matchedLocationKeyword}\\b`, 'gi');
+      processedQuery = processedQuery.replace(regexLoc, ' '); // Replace with space
+    }
   }
 
+  // If the original query was just a category keyword (e.g., "hotels")
+  // and it's now empty or different, set processedQuery to be that keyword.
+  if (category && matchedCategoryKeyword &&
+      query.toLowerCase() === matchedCategoryKeyword.toLowerCase()) {
+    processedQuery = matchedCategoryKeyword;
+  }
+  // If the original query was just a location keyword (e.g., "Galle")
+  // and it's now empty or different, set processedQuery to be that keyword.
+  else if (location && matchedLocationKeyword &&
+           query.toLowerCase() === matchedLocationKeyword.toLowerCase() &&
+           processedQuery.trim() === "") { // Check if it became empty after location removal attempt
+    processedQuery = matchedLocationKeyword;
+  }
+
+  // Clean up extra spaces that might have been introduced.
+  processedQuery = processedQuery.replace(/\s\s+/g, ' ').trim();
+
+  // Fallback: if processedQuery is empty after all operations,
+  // and the original query was not just a category/location that we explicitly want to keep,
+  // then it implies the query might have been something like "in Galle" becoming "in".
+  // In such generic cases, or if it's truly empty, using the original query is safer.
+  if (!processedQuery && query.toLowerCase() !== matchedCategoryKeyword?.toLowerCase() && query.toLowerCase() !== matchedLocationKeyword?.toLowerCase()) {
+    processedQuery = query;
+  } else if (!processedQuery) { // If it's empty and it WAS a category/location word.
+     processedQuery = query; // Revert to original (e.g. "Galle" or "Hotels")
+  }
+
+
   return { category, location, processedQuery };
+};
+
+export const addListing = (newListing: Listing) => {
+  mockListingsData.unshift(newListing); // Add to the beginning for easier visibility in current setup
+};
+
+export const updateListingStatus = (listingId: string, approved: boolean): boolean => {
+  const listingIndex = mockListingsData.findIndex(listing => listing.id === listingId);
+  if (listingIndex !== -1) {
+    mockListingsData[listingIndex].approved = approved;
+    return true;
+  }
+  return false;
+};
+
+export const deleteListing = (listingId: string): boolean => {
+  const initialLength = mockListingsData.length;
+  mockListingsData = mockListingsData.filter(listing => listing.id !== listingId);
+  return mockListingsData.length < initialLength;
+};
+
+// Type for the updatable part of the listing, matching ListingFormData
+type UpdatableListingData = Partial<Omit<Listing, 'id' | 'createdBy' | 'createdAt' | 'rating' | 'reviewCount' | 'approved' | 'featured'>>;
+
+export const updateListing = (listingId: string, updatedData: UpdatableListingData): boolean => {
+  const listingIndex = mockListingsData.findIndex(listing => listing.id === listingId);
+  if (listingIndex !== -1) {
+    // Merge updatedData into the existing listing
+    // For nested objects (location, price, contact), this will overwrite them if they are present in updatedData
+    // This matches how ListingForm provides data (all fields, some potentially unchanged)
+    mockListingsData[listingIndex] = {
+      ...mockListingsData[listingIndex],
+      ...updatedData,
+      // Ensure nested structures are handled correctly if they are partial in updatedData
+      // However, ListingFormData provides full structures for these.
+      location: { // Assuming ListingFormData provides the full location object
+        ...mockListingsData[listingIndex].location,
+        ...updatedData.location,
+        coordinates: {
+           ...mockListingsData[listingIndex].location.coordinates,
+           ...(updatedData.location?.coordinates || {}),
+        }
+      },
+      price: updatedData.price ? { // Assuming ListingFormData provides the full price object or it's optional
+        ...mockListingsData[listingIndex].price,
+        ...updatedData.price,
+      } : mockListingsData[listingIndex].price,
+      contact: updatedData.contact ? { // Assuming ListingFormData provides the full contact object or it's optional
+        ...mockListingsData[listingIndex].contact,
+        ...updatedData.contact,
+      } : mockListingsData[listingIndex].contact,
+    };
+    return true;
+  }
+  return false;
 };

@@ -12,6 +12,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute"; // Import ProtectedRoute
+import WishlistPage from "./pages/WishlistPage"; // Import WishlistPage
 
 const queryClient = new QueryClient();
 
@@ -28,9 +30,13 @@ const App = () =>
               <Route path="/listing/:id" element={<ListingDetail data-id="12fya4m8q" data-path="src/App.tsx" />} data-id="63lt2kei7" data-path="src/App.tsx" />
               <Route path="/login" element={<Login data-id="gvh69vbfm" data-path="src/App.tsx" />} data-id="z42e36l16" data-path="src/App.tsx" />
               <Route path="/register" element={<Register data-id="g2xpa5uas" data-path="src/App.tsx" />} data-id="5sruatty8" data-path="src/App.tsx" />
-              <Route path="/dashboard" element={<UserDashboard data-id="hwap4wpmy" data-path="src/App.tsx" />} data-id="p90y4qigm" data-path="src/App.tsx" />
-              <Route path="/admin" element={<AdminDashboard data-id="34jimsmv3" data-path="src/App.tsx" />} data-id="snj684ui7" data-path="src/App.tsx" />
-              <Route path="/profile" element={<Profile data-id="a0icdb5dt" data-path="src/App.tsx" />} data-id="bl26qpahu" data-path="src/App.tsx" />
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute data-id="uenc03227" data-path="src/App.tsx" />}>
+                <Route path="/dashboard" element={<UserDashboard data-id="hwap4wpmy" data-path="src/App.tsx" />} data-id="p90y4qigm" data-path="src/App.tsx" />
+                <Route path="/admin" element={<AdminDashboard data-id="34jimsmv3" data-path="src/App.tsx" />} data-id="snj684ui7" data-path="src/App.tsx" />
+                <Route path="/profile" element={<Profile data-id="a0icdb5dt" data-path="src/App.tsx" />} data-id="bl26qpahu" data-path="src/App.tsx" />
+                <Route path="/wishlist" element={<WishlistPage data-id="wishlistpage01" data-path="src/App.tsx" />} data-id="wishlistroute01" data-path="src/App.tsx" />
+              </Route>
               <Route path="*" element={<NotFound data-id="mixa8420k" data-path="src/App.tsx" />} data-id="q3eea670y" data-path="src/App.tsx" />
             </Routes>
           </div>

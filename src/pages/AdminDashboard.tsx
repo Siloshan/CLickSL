@@ -1,43 +1,115 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Added Dialog
+import { useToast } from "@/components/ui/use-toast";
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockListings } from '@/data/mockData';
+import { mockListingsData, updateListingStatus, deleteListing, Listing, updateListing } from '@/data/mockData'; // Added updateListing
+import ListingForm, { ListingFormData } from '@/components/ListingForm'; // Added ListingForm
 import {
   Shield,
   Users,
+  Edit as EditIcon, // Renamed Edit to avoid conflict
   Eye,
   CheckCircle,
   Clock,
   XCircle,
   MapPin,
   Star,
-  AlertTriangle } from
-'lucide-react';
+  AlertTriangle
+} from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [pendingListings] = useState(mockListings.filter((listing) => !listing.approved));
+  const { toast } = useToast();
+
+  const [allListings, setAllListings] = useState<Listing[]>([]);
+  const [pendingListingsView, setPendingListingsView] = useState<Listing[]>([]);
+  const [approvedListingsView, setApprovedListingsView] = useState<Listing[]>([]);
+
+  const [editingListing, setEditingListing] = useState<Listing | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+
+  const fetchAdminListings = useCallback(() => {
+    // In a real app, this would be an API call. Here we copy mockData to allow local "mutation" for the session.
+    const currentListings = [...mockListingsData];
+    setAllListings(currentListings);
+    setPendingListingsView(currentListings.filter(listing => !listing.approved));
+    setApprovedListingsView(currentListings.filter(listing => listing.approved));
+  }, []);
+
+  useEffect(() => {
+    fetchAdminListings();
+  }, [fetchAdminListings]);
 
   if (!user || user.role !== 'admin') {
     navigate('/');
     return null;
   }
 
+  const openEditForm = (listing: Listing) => {
+    setEditingListing(listing);
+    setShowEditForm(true);
+  };
+
+  const handleUpdateListing = async (formData: ListingFormData) => {
+    if (!editingListing) return;
+    setIsUpdating(true);
+    try {
+      if (updateListing(editingListing.id, formData)) {
+        fetchAdminListings();
+        toast({
+          title: "Listing Updated",
+          description: `Listing "${formData.title}" has been updated successfully.`,
+          variant: "success",
+        });
+        setShowEditForm(false);
+        setEditingListing(null);
+      } else {
+        toast({ title: "Error", description: "Failed to update listing.", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Error updating listing:", error);
+      toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleApprove = (listingId: string) => {
-    console.log('Approving listing:', listingId);
-    // Implementation for approving listing
+    const listingToUpdate = allListings.find(l => l.id === listingId);
+    if (updateListingStatus(listingId, true)) {
+      fetchAdminListings(); // Refresh local state from "source of truth"
+      toast({
+        title: "Listing Approved",
+        description: `Listing "${listingToUpdate?.title || 'Unknown'}" has been approved.`,
+        variant: "success",
+      });
+    } else {
+       toast({ title: "Error", description: "Failed to approve listing.", variant: "destructive"});
+    }
   };
 
   const handleReject = (listingId: string) => {
-    console.log('Rejecting listing:', listingId);
-    // Implementation for rejecting listing
+    const listingToUpdate = allListings.find(l => l.id === listingId);
+    if (deleteListing(listingId)) {
+      fetchAdminListings(); // Refresh local state
+      toast({
+        title: "Listing Rejected",
+        description: `Listing "${listingToUpdate?.title || 'Unknown'}" has been rejected and removed.`,
+        variant: "success", // Or "destructive" if preferred for rejection
+      });
+    } else {
+      toast({ title: "Error", description: "Failed to reject listing.", variant: "destructive"});
+    }
   };
 
   return (
@@ -66,7 +138,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="flex items-center justify-between" data-id="vvm7ik5b8" data-path="src/pages/AdminDashboard.tsx">
                     <div data-id="2969lr232" data-path="src/pages/AdminDashboard.tsx">
                       <p className="text-sm text-gray-600" data-id="ygogjivjo" data-path="src/pages/AdminDashboard.tsx">Total Listings</p>
-                      <p className="text-2xl font-bold text-gray-900" data-id="4wmlc5r4r" data-path="src/pages/AdminDashboard.tsx">{mockListings.length}</p>
+                      <p className="text-2xl font-bold text-gray-900" data-id="4wmlc5r4r" data-path="src/pages/AdminDashboard.tsx">{allListings.length}</p>
                     </div>
                     <Eye className="w-8 h-8 text-blue-500" data-id="8nh22n09l" data-path="src/pages/AdminDashboard.tsx" />
                   </div>
@@ -79,7 +151,7 @@ const AdminDashboard: React.FC = () => {
                     <div data-id="51hum8k40" data-path="src/pages/AdminDashboard.tsx">
                       <p className="text-sm text-gray-600" data-id="rklagegs0" data-path="src/pages/AdminDashboard.tsx">Approved</p>
                       <p className="text-2xl font-bold text-green-600" data-id="b34e51l8b" data-path="src/pages/AdminDashboard.tsx">
-                        {mockListings.filter((l) => l.approved).length}
+                        {approvedListingsView.length}
                       </p>
                     </div>
                     <CheckCircle className="w-8 h-8 text-green-500" data-id="9vsp1dvmo" data-path="src/pages/AdminDashboard.tsx" />
@@ -93,7 +165,7 @@ const AdminDashboard: React.FC = () => {
                     <div data-id="x29ynq5co" data-path="src/pages/AdminDashboard.tsx">
                       <p className="text-sm text-gray-600" data-id="b7ffkhtj5" data-path="src/pages/AdminDashboard.tsx">Pending</p>
                       <p className="text-2xl font-bold text-yellow-600" data-id="ffj974uis" data-path="src/pages/AdminDashboard.tsx">
-                        {pendingListings.length}
+                        {pendingListingsView.length}
                       </p>
                     </div>
                     <Clock className="w-8 h-8 text-yellow-500" data-id="zydw7p6l7" data-path="src/pages/AdminDashboard.tsx" />
@@ -106,7 +178,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="flex items-center justify-between" data-id="bmwkp2l01" data-path="src/pages/AdminDashboard.tsx">
                     <div data-id="0ocbiejah" data-path="src/pages/AdminDashboard.tsx">
                       <p className="text-sm text-gray-600" data-id="qmwd17e9w" data-path="src/pages/AdminDashboard.tsx">Users</p>
-                      <p className="text-2xl font-bold text-gray-900" data-id="y2krzcmk8" data-path="src/pages/AdminDashboard.tsx">156</p>
+                      <p className="text-2xl font-bold text-gray-900" data-id="y2krzcmk8" data-path="src/pages/AdminDashboard.tsx">156</p>{/* Placeholder */}
                     </div>
                     <Users className="w-8 h-8 text-purple-500" data-id="08m51y8gb" data-path="src/pages/AdminDashboard.tsx" />
                   </div>
@@ -117,9 +189,9 @@ const AdminDashboard: React.FC = () => {
             <Tabs defaultValue="pending" className="space-y-6" data-id="zcuqdfiji" data-path="src/pages/AdminDashboard.tsx">
               <TabsList className="grid w-full grid-cols-3 lg:w-400" data-id="r5ltuat1v" data-path="src/pages/AdminDashboard.tsx">
                 <TabsTrigger value="pending" data-id="2c7xc998q" data-path="src/pages/AdminDashboard.tsx">
-                  Pending Approval ({pendingListings.length})
+                  Pending Approval ({pendingListingsView.length})
                 </TabsTrigger>
-                <TabsTrigger value="approved" data-id="tjdf5y0g2" data-path="src/pages/AdminDashboard.tsx">Approved</TabsTrigger>
+                <TabsTrigger value="approved" data-id="tjdf5y0g2" data-path="src/pages/AdminDashboard.tsx">Approved ({approvedListingsView.length})</TabsTrigger>
                 <TabsTrigger value="users" data-id="2q540r0eu" data-path="src/pages/AdminDashboard.tsx">Users</TabsTrigger>
               </TabsList>
 
@@ -133,7 +205,7 @@ const AdminDashboard: React.FC = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent data-id="kpxl13evm" data-path="src/pages/AdminDashboard.tsx">
-                    {pendingListings.length === 0 ?
+                    {pendingListingsView.length === 0 ? (
                     <div className="text-center py-8" data-id="bbbf28bw4" data-path="src/pages/AdminDashboard.tsx">
                         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" data-id="0fz4avb4c" data-path="src/pages/AdminDashboard.tsx" />
                         <h3 className="text-lg font-semibold text-gray-900 mb-2" data-id="al8xp7g6x" data-path="src/pages/AdminDashboard.tsx">
@@ -142,10 +214,10 @@ const AdminDashboard: React.FC = () => {
                         <p className="text-gray-600" data-id="wdntf01l1" data-path="src/pages/AdminDashboard.tsx">
                           No listings are pending approval at the moment.
                         </p>
-                      </div> :
-
+                      </div>
+                    ) : (
                     <div className="space-y-4" data-id="rhziz7t4b" data-path="src/pages/AdminDashboard.tsx">
-                        {pendingListings.map((listing) =>
+                        {pendingListingsView.map((listing) => (
                       <motion.div
                         key={listing.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -154,7 +226,7 @@ const AdminDashboard: React.FC = () => {
 
                             <div className="flex items-start space-x-4" data-id="zq0zviwmm" data-path="src/pages/AdminDashboard.tsx">
                               <img
-                            src={listing.images[0]}
+                            src={listing.images[0] || 'https://via.placeholder.com/150/eee/ccc?text=No+Image'}
                             alt={listing.title}
                             className="w-24 h-24 object-cover rounded-lg" data-id="a1klocwhs" data-path="src/pages/AdminDashboard.tsx" />
 
@@ -180,29 +252,29 @@ const AdminDashboard: React.FC = () => {
                                       Submitted by: {listing.createdBy} on {listing.createdAt}
                                     </div>
                                   </div>
-                                  <div className="flex space-x-2" data-id="5pgdjqlk0" data-path="src/pages/AdminDashboard.tsx">
+                                  <div className="flex space-x-2 flex-col sm:flex-row gap-2 sm:gap-0" data-id="5pgdjqlk0" data-path="src/pages/AdminDashboard.tsx">
+                                    <Button size="sm" onClick={() => openEditForm(listing)} variant="outline" className="border-gray-300 hover:bg-gray-100">
+                                      <EditIcon className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
                                     <Button
-                                  size="sm"
-                                  onClick={() => handleApprove(listing.id)}
-                                  className="bg-green-600 hover:bg-green-700" data-id="udjub3uxn" data-path="src/pages/AdminDashboard.tsx">
-
+                                      size="sm"
+                                      onClick={() => handleApprove(listing.id)}
+                                      className="bg-green-600 hover:bg-green-700" data-id="udjub3uxn" data-path="src/pages/AdminDashboard.tsx">
                                       <CheckCircle className="w-4 h-4 mr-1" data-id="jbq7uzyx0" data-path="src/pages/AdminDashboard.tsx" />
                                       Approve
                                     </Button>
                                     <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReject(listing.id)}
-                                  className="text-red-600 border-red-200 hover:bg-red-50" data-id="dkakshjfi" data-path="src/pages/AdminDashboard.tsx">
-
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleReject(listing.id)}
+                                      className="text-red-600 border-red-200 hover:bg-red-50" data-id="dkakshjfi" data-path="src/pages/AdminDashboard.tsx">
                                       <XCircle className="w-4 h-4 mr-1" data-id="poqnzsy9c" data-path="src/pages/AdminDashboard.tsx" />
                                       Reject
                                     </Button>
                                     <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => navigate(`/listing/${listing.id}`)} data-id="rj425jtqq" data-path="src/pages/AdminDashboard.tsx">
-
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => navigate(`/listing/${listing.id}`)} data-id="rj425jtqq" data-path="src/pages/AdminDashboard.tsx">
                                       <Eye className="w-4 h-4" data-id="ez49o3a6s" data-path="src/pages/AdminDashboard.tsx" />
                                     </Button>
                                   </div>
@@ -210,9 +282,9 @@ const AdminDashboard: React.FC = () => {
                               </div>
                             </div>
                           </motion.div>
-                      )}
+                      ))}
                       </div>
-                    }
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -227,15 +299,26 @@ const AdminDashboard: React.FC = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent data-id="1kx1iel20" data-path="src/pages/AdminDashboard.tsx">
+                    {approvedListingsView.length === 0 ? (
+                       <div className="text-center py-8" data-id="bbbf28bw4-approved" data-path="src/pages/AdminDashboard.tsx">
+                        <AlertTriangle className="w-16 h-16 text-orange-500 mx-auto mb-4" data-id="0fz4avb4c-approved" data-path="src/pages/AdminDashboard.tsx" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2" data-id="al8xp7g6x-approved" data-path="src/pages/AdminDashboard.tsx">
+                          No Approved Listings
+                        </h3>
+                        <p className="text-gray-600" data-id="wdntf01l1-approved" data-path="src/pages/AdminDashboard.tsx">
+                          Approve some listings from the 'Pending Approval' tab.
+                        </p>
+                      </div>
+                    ) : (
                     <div className="space-y-4" data-id="kcg5js9m0" data-path="src/pages/AdminDashboard.tsx">
-                      {mockListings.filter((l) => l.approved).map((listing) =>
+                      {approvedListingsView.map((listing) => (
                       <div
                         key={listing.id}
                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg" data-id="6dsuneo02" data-path="src/pages/AdminDashboard.tsx">
 
                           <div className="flex items-center space-x-4" data-id="ktth9ifv1" data-path="src/pages/AdminDashboard.tsx">
                             <img
-                            src={listing.images[0]}
+                            src={listing.images[0] || 'https://via.placeholder.com/150/eee/ccc?text=No+Image'}
                             alt={listing.title}
                             className="w-16 h-16 object-cover rounded-lg" data-id="zy9fbbom1" data-path="src/pages/AdminDashboard.tsx" />
 
@@ -250,11 +333,14 @@ const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center space-x-2" data-id="u5hfghavo" data-path="src/pages/AdminDashboard.tsx">
-                            {listing.featured &&
+                            <Button size="sm" onClick={() => openEditForm(listing)} variant="outline" className="border-gray-300 hover:bg-gray-100">
+                              <EditIcon className="w-4 h-4 mr-1" /> Edit
+                            </Button>
+                            {listing.featured && (
                           <Badge className="bg-yellow-100 text-yellow-800" data-id="oxyo0izv6" data-path="src/pages/AdminDashboard.tsx">
                                 Featured
                               </Badge>
-                          }
+                            )}
                             <Button
                             size="sm"
                             variant="ghost"
@@ -264,7 +350,7 @@ const AdminDashboard: React.FC = () => {
                             </Button>
                           </div>
                         </div>
-                      )}
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
@@ -296,6 +382,32 @@ const AdminDashboard: React.FC = () => {
           </motion.div>
         </div>
       </div>
+
+            {/* Edit Listing Form Dialog */}
+            <Dialog open={showEditForm} onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                setEditingListing(null); // Clear editing state when dialog closes
+              }
+              setShowEditForm(isOpen);
+            }}>
+              <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Listing</DialogTitle>
+                </DialogHeader>
+                {editingListing && (
+                  <ListingForm
+                    onSubmit={handleUpdateListing}
+                    initialData={editingListing}
+                    isLoading={isUpdating}
+                    onCancel={() => {
+                      setShowEditForm(false);
+                      setEditingListing(null);
+                    }}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+
     </div>);
 
 };

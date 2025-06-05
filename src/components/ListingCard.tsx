@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Listing } from '@/data/mockData';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import { Star, MapPin, DollarSign, Eye, Heart } from 'lucide-react';
 
 interface ListingCardProps {
@@ -14,6 +15,7 @@ interface ListingCardProps {
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, className = "" }) => {
   const navigate = useNavigate();
+  const { user, addToWishlist, removeFromWishlist, isFavorite } = useAuth(); // Use AuthContext
 
   const categoryColors = {
     attraction: 'bg-blue-100 text-blue-800',
@@ -73,13 +75,27 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, className = "" }) =>
           <Button
             variant="ghost"
             size="sm"
-            className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-0"
+            className={`absolute top-3 right-3 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-0 ${!user ? 'cursor-not-allowed opacity-50' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              // Handle favorite logic
-            }} data-id="utjezhqmp" data-path="src/components/ListingCard.tsx">
-
-            <Heart className="w-4 h-4" data-id="0mgu8nyp0" data-path="src/components/ListingCard.tsx" />
+              if (user) {
+                if (isFavorite(listing.id)) {
+                  removeFromWishlist(listing.id);
+                } else {
+                  addToWishlist(listing.id);
+                }
+              } else {
+                // Optionally, prompt to login, e.g., using a toast
+                // toast({ title: "Login Required", description: "Please login to add to wishlist."})
+                console.log("User not logged in, cannot add to wishlist.");
+              }
+            }}
+            disabled={!user} // Disable button if no user
+            data-id="utjezhqmp" data-path="src/components/ListingCard.tsx">
+            <Heart
+              className="w-4 h-4"
+              fill={isFavorite(listing.id) ? 'currentColor' : 'none'}
+              data-id="0mgu8nyp0" data-path="src/components/ListingCard.tsx" />
           </Button>
 
           {/* Price Tag */}
